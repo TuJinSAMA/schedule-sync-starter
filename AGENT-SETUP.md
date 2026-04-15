@@ -38,28 +38,51 @@
 
 ```
 skills/
-├── cross-platform-messenger-claw/
-├── interview-scheduler-claw/
-├── meeting-assistant-claw/
-├── schedule-sync-claw/
-└── sensevoice-transcribe/
+├── cross-platform-messenger-claw/   ← 跨平台消息 skill
+├── interview-scheduler-claw/        ← 约面招聘 skill
+├── meeting-assistant-claw/          ← 会议助理 skill
+├── schedule-sync-claw/              ← 日程协办 skill
+└── sensevoice-transcribe/           ← 语音转写 skill
 ```
 
 复制到：`<你的 workspace>/skills/` 目录下
 
-**⚠️ Skill 依赖关系（安装顺序建议）：**
+#### 各 Skill 说明与依赖关系
 
-```
-sensevoice-transcribe        ← 🗣️ 语音转写（无依赖，先装）
-schedule-sync-claw           ← 📅 日程协办（无依赖）
-cross-platform-messenger-claw ← 📨 跨平台消息（无依赖）
-interview-scheduler-claw     ← 🤝 约面招聘（与 schedule-sync-claw 功能互补）
-meeting-assistant-claw       ← 🎙️ 会议助理（依赖 sensevoice-transcribe 的转写环境）
-```
+**`sensevoice-transcribe` — 语音转写 skill**
+团队的语音处理基础设施。将音频文件（WAV/MP3/M4A/FLAC）转写为带时间戳的文字，支持单文件和批量模式。
+- **输入**：音频文件路径
+- **输出**：带时间戳的转写文本
+- **依赖**：Python 3.8+、`funasr`、`torch`、`modelscope`（需提前安装）
+- **下游**：转写结果传给 `meeting-assistant-claw` 进行纪要提炼
 
-- `meeting-assistant-claw` 执行录音转写时依赖 `sensevoice-transcribe` 提供的 SenseVoice venv 和模型
-- `interview-scheduler-claw` 和 `schedule-sync-claw` 共用飞书日历能力，建议都安装
-- `cross-platform-messenger-claw` 独立运行，常作为下游消息分发通道
+**`schedule-sync-claw` — 日程协办 skill**
+团队的日历核心能力。查询多人空闲时间、自动创建飞书会议并发送邀请，支持日程同步和会议背景预置。
+- **输入**：参会人信息 + 会议主题 + 时间偏好
+- **输出**：飞书日程链接 + 邀请确认
+- **依赖**：飞书 OAuth 用户授权（通过 openclaw-lark 插件）
+- **下游**：常与 `cross-platform-messenger-claw` 配合，创建日程后推送通知
+
+**`meeting-assistant-claw` — 会议助理 skill**
+全流程会议闭环处理。接收录音文件，转写后提炼待办事项，并将任务分发到协作工具。
+- **输入**：会议录音文件（mp3/m4a/opus/wav 等）
+- **输出**：会议纪要 + 待办清单 + 飞书云文档
+- **依赖**：依赖 `sensevoice-transcribe` 提供的 SenseVoice 转写环境（需先安装并配置）
+- **下游**：待办可传给 `schedule-sync-claw`（创建跟进日程）或 `cross-platform-messenger-claw`（分发给相关人员）
+
+**`interview-scheduler-claw` — 约面招聘 skill**
+面试邀约自动化协调。自动查询面试官空闲时间，批量创建面试日程并发送邀请邮件。
+- **输入**：候选人信息 + 面试官列表 + 时间范围
+- **输出**：面试日程 + 邀请通知
+- **依赖**：飞书 OAuth 用户授权；与 `schedule-sync-claw` 共用飞书日历能力，建议同时安装
+- **上游/下游**：通常与 `cross-platform-messenger-claw` 配合，日程创建后推送通知给候选人
+
+**`cross-platform-messenger-claw` — 跨平台消息 skill**
+团队的消息分发出口。打通飞书、邮件、WhatsApp、Telegram 等渠道，确保通知精准触达目标人员。
+- **输入**：消息内容 + 目标渠道 + 接收人信息
+- **输出**：消息发送确认
+- **依赖**：各渠道的 API 配置（按需配置，不需要全部配置）
+- **上游**：通常作为整个工作流的最后一环，接收其他 skill 的产出并推送给相关人员
 
 ### 第四步：设置用户信息
 
